@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kalana's Investment Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0f1a; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #111827; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ── Historical quarters ──────────────────────────────────────────────────────
+    const QUARTERS = [
+      {
+        date: "Q1 2024", timestamp: "2024-03-31", notes: "",
+        pearler: { total: 1297,  holdings: [] },
+        swyftx:  { total: 6663,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q2 2024", timestamp: "2024-06-30", notes: "",
+        pearler: { total: 3092,  holdings: [] },
+        swyftx:  { total: 4655,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q3 2024", timestamp: "2024-09-30", notes: "",
+        pearler: { total: 5360,  holdings: [] },
+        swyftx:  { total: 5719,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q4 2024", timestamp: "2024-12-31", notes: "Profits taken: $2,700 (crypto)",
+        pearler: { total: 9081,  holdings: [] },
+        swyftx:  { total: 6196,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q1 2025", timestamp: "2025-03-31", notes: "",
+        pearler: { total: 12306, holdings: [] },
+        swyftx:  { total: 6730,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q2 2025", timestamp: "2025-06-30", notes: "",
+        pearler: { total: 15944, holdings: [] },
+        swyftx:  { total: 9917,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q3 2025", timestamp: "2025-09-30", notes: "",
+        pearler: { total: 18556, holdings: [] },
+        swyftx:  { total: 12355, crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q4 2025", timestamp: "2025-12-31", notes: "Profits taken: $700 (crypto)",
+        pearler: { total: 20504, holdings: [] },
+        swyftx:  { total: 9444,  crypto: [], fiat: 0 },
+        trezor:  { total: 0,     holdings: [] },
+      },
+      {
+        date: "Q1 2026", timestamp: "2026-03-30", notes: "",
+        pearler: {
+          total: 20078.37,
+          holdings: [
+            { ticker: "IVV",    name: "iShares S&P 500 ETF",   units: 131.0,     value: 8090.56 },
+            { ticker: "VAS",    name: "Vanguard Aus Shares",    units: 52.0,      value: 5491.20 },
+            { ticker: "PMGOLD", name: "Gold",                   units: 63.0,      value: 4110.12 },
+            { ticker: "FANG",   name: "Global X FANG+ ETF",     units: 70.0,      value: 2005.50 },
+            { ticker: "COIN",   name: "Coinbase Global",        units: 1.627,     value: 380.99  },
+          ],
+        },
+        swyftx: {
+          total: 3970.88,
+          crypto: [
+            { asset: "BTC",   units: 0.0212,     value: 2089.54 },
+            { asset: "SOL",   units: 4.351,      value: 533.93  },
+            { asset: "ETH",   units: 0.173,      value: 522.97  },
+            { asset: "FET",   units: 514.006,    value: 181.14  },
+            { asset: "TRUMP", units: 3.704,      value: 16.01   },
+            { asset: "ARKM",  units: 78.435,     value: 11.25   },
+            { asset: "LUNA",  units: 0.493,      value: 0.04    },
+          ],
+          fiat: 615.0,
+        },
+        trezor: {
+          total: 4384.03,
+          holdings: [{ asset: "BTC", units: 0.04439431, value: 4384.03 }],
+        },
+      },
+    ];
+
+    const STORAGE_KEY = "investment-quarters-v5";
+
+    const fmt = (v) =>
+      v.toLocaleString("en-AU", { style: "currency", currency: "AUD", minimumFractionDigits: 2 });
+    const fmtCompact = (v) => {
+      if (v >= 1000) return "$" + (v / 1000).toFixed(1) + "k";
+      return "$" + v.toFixed(0);
+    };
+    const pct = (v) => (v * 100).toFixed(1) + "%";
+
+    const COLORS = {
+      bg: "#0a0f1a",
+      card: "#111827",
+      border: "#1e293b",
+      accent: "#22d3ee",
+      accentDim: "rgba(34,211,238,0.15)",
+      green: "#34d399",
+      amber: "#fbbf24",
+      rose: "#fb7185",
+      text: "#e2e8f0",
+      textDim: "#94a3b8",
+      textMuted: "#64748b",
+    };
+
+    const PLATFORM_COLORS = {
+      Pearler: { main: "#14b8a6", dim: "rgba(20,184,166,0.15)", icon: "📊" },
+      Crypto:  { main: "#8b5cf6", dim: "rgba(139,92,246,0.15)",  icon: "⚡" },
+      Swyftx:  { main: "#8b5cf6", dim: "rgba(139,92,246,0.15)",  icon: "⚡" },
+      Trezor:  { main: "#4ade80", dim: "rgba(74,222,128,0.15)",  icon: "🔐" },
+    };
+
+    function MiniBar({ value, max, color }) {
+      const w = max > 0 ? (value / max) * 100 : 0;
+      return (
+        <div style={{ width: "100%", height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
+          <div style={{ width: `${w}%`, height: "100%", borderRadius: 3, background: color, transition: "width 0.6s ease" }} />
+        </div>
+      );
+    }
+
+    function DonutChart({ segments, size = 170 }) {
+      const total = segments.reduce((s, seg) => s + seg.value, 0);
+      const cx = size / 2, cy = size / 2, r = size / 2 - 16, strokeW = 20;
+      const circumference = 2 * Math.PI * r;
+      let cumulative = 0;
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeW} />
+          {segments.map((seg, i) => {
+            const p = total > 0 ? seg.value / total : 0;
+            const dashLen = p * circumference, dashGap = circumference - dashLen;
+            const offset = -cumulative * circumference + circumference * 0.25;
+            cumulative += p;
+            return (
+              <circle
+                key={i} cx={cx} cy={cy} r={r} fill="none"
+                stroke={seg.color} strokeWidth={strokeW}
+                strokeDasharray={`${dashLen} ${dashGap}`}
+                strokeDashoffset={offset} strokeLinecap="butt"
+                style={{ transition: "stroke-dasharray 0.8s ease" }}
+              />
+            );
+          })}
+          <text x={cx} y={cy - 8} textAnchor="middle" fill={COLORS.text} fontSize="16" fontWeight="700" fontFamily="'JetBrains Mono', monospace">{fmt(total)}</text>
+          <text x={cx} y={cy + 14} textAnchor="middle" fill={COLORS.textDim} fontSize="10" fontFamily="'JetBrains Mono', monospace">TOTAL</text>
+        </svg>
+      );
+    }
+
+    function QuarterlyChart({ data }) {
+      if (data.length < 1) return null;
+      const totals = data.map((q) => ({
+        label: q.date,
+        total: q.pearler.total + q.swyftx.total + q.trezor.total,
+        pearler: q.pearler.total,
+        crypto: q.swyftx.total + q.trezor.total,
+        notes: q.notes || "",
+      }));
+      const maxVal = Math.max(...totals.map((t) => t.total)) * 1.2;
+      const chartH = 280;
+      const chartW = Math.max(700, totals.length * 70 + 100);
+      const padL = 62, padR = 24, padT = 48, padB = 48;
+      const innerW = chartW - padL - padR;
+      const innerH = chartH - padT - padB;
+      const gridLines = 5;
+      const step = maxVal / gridLines;
+      const getX = (i) =>
+        padL + (totals.length === 1 ? innerW / 2 : (i / (totals.length - 1)) * innerW);
+      const getY = (v) => padT + innerH - (v / maxVal) * innerH;
+      const makeArea = (bottomFn, topFn, color) => {
+        if (totals.length < 2) return null;
+        const topPts = totals.map((t, i) => `${getX(i).toFixed(1)},${getY(topFn(t)).toFixed(1)}`);
+        const botPts = [...totals].reverse().map((t, i) => `${getX(totals.length - 1 - i).toFixed(1)},${getY(bottomFn(t)).toFixed(1)}`);
+        return <path d={`M${topPts.join(" L")} L${botPts.join(" L")} Z`} fill={color} opacity={0.12} />;
+      };
+      const changes = totals.map((t, i) => {
+        if (i === 0) return null;
+        const prev = totals[i - 1].total;
+        return { dollar: t.total - prev, pct: prev > 0 ? (t.total - prev) / prev : 0 };
+      });
+      return (
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20 }}>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16 }}>
+            Portfolio Value Over Time
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <svg width={chartW} height={chartH} viewBox={`0 0 ${chartW} ${chartH}`} style={{ display: "block", minWidth: chartW }}>
+              {Array.from({ length: gridLines + 1 }, (_, i) => {
+                const v = i * step;
+                const y = getY(v);
+                return (
+                  <g key={i}>
+                    <line x1={padL} x2={chartW - padR} y1={y} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+                    <text x={padL - 8} y={y + 3} textAnchor="end" fill={COLORS.textMuted} fontSize="9" fontFamily="'JetBrains Mono', monospace">{fmtCompact(v)}</text>
+                  </g>
+                );
+              })}
+              {makeArea(() => 0, (t) => t.pearler, PLATFORM_COLORS.Pearler.main)}
+              {makeArea((t) => t.pearler, (t) => t.total, PLATFORM_COLORS.Crypto.main)}
+              {totals.length > 1 && (
+                <path
+                  d={totals.map((t, i) => `${i === 0 ? "M" : "L"}${getX(i).toFixed(1)},${getY(t.total).toFixed(1)}`).join(" ")}
+                  fill="none" stroke={COLORS.accent} strokeWidth={2} strokeLinejoin="round"
+                />
+              )}
+              {totals.map((t, i) => (
+                <g key={i}>
+                  <circle cx={getX(i)} cy={getY(t.total)} r={4} fill={COLORS.bg} stroke={COLORS.accent} strokeWidth={2} />
+                  <text x={getX(i)} y={getY(t.total) - 10} textAnchor="middle" fill={COLORS.text} fontSize="10" fontWeight="600" fontFamily="'JetBrains Mono', monospace">{fmtCompact(t.total)}</text>
+                  <text x={getX(i)} y={chartH - 12} textAnchor="middle" fill={COLORS.textDim} fontSize="9" fontFamily="'JetBrains Mono', monospace">{t.label}</text>
+                  {changes[i] && (
+                    <text x={getX(i)} y={getY(t.total) - 22} textAnchor="middle" fill={changes[i].dollar >= 0 ? COLORS.green : COLORS.rose} fontSize="8" fontFamily="'JetBrains Mono', monospace">
+                      {changes[i].dollar >= 0 ? "▲" : "▼"} {pct(Math.abs(changes[i].pct))}
+                    </text>
+                  )}
+                  {t.notes && (
+                    <text x={getX(i)} y={padT - 10} textAnchor="middle" fill={COLORS.amber} fontSize="11">↓</text>
+                  )}
+                </g>
+              ))}
+            </svg>
+          </div>
+          <div style={{ display: "flex", gap: 16, marginTop: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            {[
+              { label: "Pearler", color: PLATFORM_COLORS.Pearler.main },
+              { label: "Crypto",  color: PLATFORM_COLORS.Crypto.main },
+              { label: "Total",   color: COLORS.accent },
+            ].map((l) => (
+              <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: l.color }} />
+                <span style={{ fontSize: 10, color: COLORS.textDim }}>{l.label}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 10, color: COLORS.amber }}>↓</span>
+              <span style={{ fontSize: 10, color: COLORS.textDim }}>Profits taken</span>
+            </div>
+          </div>
+          <div style={{ marginTop: 20, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                  {["Quarter", "Total", "QoQ ($)", "QoQ (%)", "Pearler", "Crypto", "Notes"].map((h) => (
+                    <th key={h} style={{ textAlign: h === "Quarter" || h === "Notes" ? "left" : "right", padding: "8px 6px", fontSize: 9, color: COLORS.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {totals.map((t, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                    <td style={{ padding: "8px 6px", fontSize: 11, fontWeight: 600, color: COLORS.text }}>{t.label}</td>
+                    <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", fontWeight: 500, color: COLORS.text }}>{fmt(t.total)}</td>
+                    <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", color: !changes[i] ? COLORS.textMuted : changes[i].dollar >= 0 ? COLORS.green : COLORS.rose }}>
+                      {!changes[i] ? "—" : `${changes[i].dollar >= 0 ? "+" : ""}${fmt(changes[i].dollar)}`}
+                    </td>
+                    <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", color: !changes[i] ? COLORS.textMuted : changes[i].pct >= 0 ? COLORS.green : COLORS.rose }}>
+                      {!changes[i] ? "—" : `${changes[i].pct >= 0 ? "+" : ""}${pct(changes[i].pct)}`}
+                    </td>
+                    <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", color: COLORS.textDim }}>{fmt(t.pearler)}</td>
+                    <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", color: COLORS.textDim }}>{fmt(t.crypto)}</td>
+                    <td style={{ padding: "8px 6px", fontSize: 10, color: COLORS.amber }}>{t.notes || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    function InvestmentTracker() {
+      const [data, setData] = useState(null);
+      const [selectedQuarter, setSelectedQuarter] = useState(0);
+      const [view, setView] = useState("overview");
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && parsed.length > 0) {
+              setData(parsed);
+              setSelectedQuarter(parsed.length - 1);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {}
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(QUARTERS));
+        setData(QUARTERS);
+        setSelectedQuarter(QUARTERS.length - 1);
+        setLoading(false);
+      }, []);
+
+      if (loading || !data) {
+        return (
+          <div style={{ background: COLORS.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: COLORS.textDim, fontFamily: "'JetBrains Mono', monospace" }}>
+            Loading…
+          </div>
+        );
+      }
+
+      const q = data[selectedQuarter];
+      const cryptoTotal = q.swyftx.total + q.trezor.total;
+      const grandTotal  = q.pearler.total + cryptoTotal;
+      const isHistorical = q.pearler.holdings.length === 0;
+      const prevQ = selectedQuarter > 0 ? data[selectedQuarter - 1] : null;
+      const prevTotal = prevQ ? prevQ.pearler.total + prevQ.swyftx.total + prevQ.trezor.total : null;
+      const qChange = prevTotal ? (grandTotal - prevTotal) / prevTotal : null;
+
+      const platformSegments = [
+        { label: "Pearler", value: q.pearler.total, color: PLATFORM_COLORS.Pearler.main },
+        { label: "Crypto",  value: cryptoTotal,      color: PLATFORM_COLORS.Crypto.main  },
+      ];
+
+      const allAssets = [
+        ...q.pearler.holdings.map((h) => ({ ...h, asset: h.ticker, platform: "Pearler" })),
+        ...q.swyftx.crypto.filter((c) => c.value >= 1).map((c) => ({ ...c, platform: "Swyftx" })),
+        ...q.trezor.holdings.map((h) => ({ ...h, platform: "Trezor" })),
+      ].sort((a, b) => b.value - a.value);
+
+      const swyftxFiat = q.swyftx.fiat || 0;
+      const totalBTC =
+        (q.swyftx.crypto.find((c) => c.asset === "BTC")?.value || 0) +
+        (q.trezor.holdings.find((h) => h.asset === "BTC")?.value || 0);
+
+      const assetClassData = [
+        { label: "Australian Equities", value: q.pearler.holdings.find((h) => h.ticker === "VAS")?.value || 0, color: "#14b8a6" },
+        { label: "US Equities", value: (q.pearler.holdings.find((h) => h.ticker === "IVV")?.value || 0) + (q.pearler.holdings.find((h) => h.ticker === "FANG")?.value || 0) + (q.pearler.holdings.find((h) => h.ticker === "COIN")?.value || 0), color: "#3b82f6" },
+        { label: "Gold", value: q.pearler.holdings.find((h) => h.ticker === "PMGOLD")?.value || 0, color: "#fbbf24" },
+        { label: "Crypto", value: q.swyftx.crypto.reduce((s, c) => s + c.value, 0) + q.trezor.holdings.reduce((s, h) => s + h.value, 0), color: "#8b5cf6" },
+        { label: "Cash", value: swyftxFiat, color: "#64748b" },
+      ].filter((a) => a.value > 0);
+
+      const cardStyle = {
+        background: COLORS.card,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 12,
+        padding: 20,
+      };
+
+      const tabs = [
+        { id: "overview",   label: "Overview"   },
+        { id: "compare",    label: "Compare"    },
+        { id: "pearler",    label: "Pearler"    },
+        { id: "crypto",     label: "Crypto"     },
+        { id: "allocation", label: "Allocation" },
+      ];
+
+      return (
+        <div style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: "'JetBrains Mono', monospace", color: COLORS.text, padding: "24px 16px" }}>
+          <div style={{ maxWidth: 900, margin: "0 auto" }}>
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 3, color: COLORS.textMuted, textTransform: "uppercase", marginBottom: 4 }}>Investment Tracker</div>
+                <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: COLORS.text }}>Kalana's Portfolio</h1>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, color: COLORS.textMuted }}>Viewing</div>
+                <div style={{ fontSize: 13, color: COLORS.textDim }}>{q.date}</div>
+              </div>
+            </div>
+
+            {/* Quarter pills */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+              {data.map((d, i) => (
+                <button key={i} onClick={() => setSelectedQuarter(i)} style={{
+                  padding: "5px 12px", borderRadius: 6,
+                  border: `1px solid ${i === selectedQuarter ? COLORS.accent : COLORS.border}`,
+                  background: i === selectedQuarter ? COLORS.accentDim : "transparent",
+                  color: i === selectedQuarter ? COLORS.accent : COLORS.textDim,
+                  cursor: "pointer", fontSize: 11, fontFamily: "inherit",
+                }}>{d.date}</button>
+              ))}
+            </div>
+
+            {/* Net value banner */}
+            <div style={{
+              ...cardStyle,
+              background: "linear-gradient(135deg, #111827 0%, #1a2235 100%)",
+              marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16,
+            }}>
+              <div>
+                <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>Net Portfolio Value</div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: COLORS.text, lineHeight: 1 }}>{fmt(grandTotal)}</div>
+                {qChange !== null && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: qChange >= 0 ? COLORS.green : COLORS.rose }}>
+                    {qChange >= 0 ? "▲" : "▼"} {pct(Math.abs(qChange))} from previous quarter
+                  </div>
+                )}
+                {q.notes && (
+                  <div style={{ marginTop: 6, fontSize: 11, color: COLORS.amber }}>{q.notes}</div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {platformSegments.map((p) => (
+                  <div key={p.label} style={{ textAlign: "center", minWidth: 110 }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>{PLATFORM_COLORS[p.label]?.icon} {p.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: p.color }}>{fmt(p.value)}</div>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted }}>{pct(grandTotal > 0 ? p.value / grandTotal : 0)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tab bar */}
+            <div style={{ display: "flex", gap: 2, marginBottom: 16, background: COLORS.card, borderRadius: 8, padding: 3, border: `1px solid ${COLORS.border}` }}>
+              {tabs.map((t) => (
+                <button key={t.id} onClick={() => setView(t.id)} style={{
+                  flex: 1, padding: "8px 0", borderRadius: 6, border: "none",
+                  background: view === t.id ? COLORS.accentDim : "transparent",
+                  color: view === t.id ? COLORS.accent : COLORS.textDim,
+                  cursor: "pointer", fontSize: 11, fontWeight: view === t.id ? 600 : 400, fontFamily: "inherit", transition: "all 0.2s",
+                }}>{t.label}</button>
+              ))}
+            </div>
+
+            {/* Overview */}
+            {view === "overview" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {isHistorical ? (
+                  <div style={{ ...cardStyle, gridColumn: "1 / -1", textAlign: "center", padding: 32, color: COLORS.textDim }}>
+                    <div style={{ fontSize: 13, marginBottom: 8 }}>Historical quarter — summary totals only</div>
+                    <div style={{ fontSize: 11, color: COLORS.textMuted }}>Select Q1 2026 or later to see full holdings breakdown.</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ ...cardStyle, gridColumn: "1 / -1" }}>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Top Holdings</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {allAssets.slice(0, 8).map((a, i) => {
+                          const pc = PLATFORM_COLORS[a.platform];
+                          return (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ width: 28, textAlign: "right", fontSize: 10, color: COLORS.textMuted }}>#{i + 1}</div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 600 }}>{a.asset || a.ticker}</span>
+                                    <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: pc?.dim, color: pc?.main }}>{a.platform}</span>
+                                  </div>
+                                  <span style={{ fontSize: 13, fontWeight: 500 }}>{fmt(a.value)}</span>
+                                </div>
+                                <MiniBar value={a.value} max={allAssets[0].value} color={pc?.main || COLORS.accent} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div style={cardStyle}>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Total BTC Exposure</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.amber }}>{fmt(totalBTC)}</div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>{pct(grandTotal > 0 ? totalBTC / grandTotal : 0)} of portfolio</div>
+                    </div>
+                    <div style={cardStyle}>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Swyftx Cash</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.textDim }}>{fmt(swyftxFiat)}</div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>Uninvested AUD</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Compare */}
+            {view === "compare" && <QuarterlyChart data={data} />}
+
+            {/* Pearler */}
+            {view === "pearler" && (
+              isHistorical ? (
+                <div style={{ ...cardStyle, textAlign: "center", padding: 32, color: COLORS.textDim }}>
+                  <div style={{ fontSize: 13, marginBottom: 12 }}>Historical quarter — holdings detail not available</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: PLATFORM_COLORS.Pearler.main }}>{fmt(q.pearler.total)}</div>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>{pct(q.pearler.total / grandTotal)} of total</div>
+                </div>
+              ) : (
+                <div style={cardStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Pearler Portfolio</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, color: COLORS.text }}>{fmt(q.pearler.total)}</div>
+                    </div>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted }}>{pct(q.pearler.total / grandTotal)} of total</div>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                        {["Ticker", "Name", "Units", "Value", "Weight"].map((h) => (
+                          <th key={h} style={{ textAlign: h === "Ticker" || h === "Name" ? "left" : "right", padding: "8px 6px", fontSize: 10, color: COLORS.textMuted, fontWeight: 500 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {q.pearler.holdings.map((h, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                          <td style={{ padding: "10px 6px", fontSize: 13, fontWeight: 600, color: PLATFORM_COLORS.Pearler.main }}>{h.ticker}</td>
+                          <td style={{ padding: "10px 6px", fontSize: 11, color: COLORS.textDim }}>{h.name}</td>
+                          <td style={{ padding: "10px 6px", fontSize: 12, textAlign: "right", color: COLORS.textDim }}>{h.units}</td>
+                          <td style={{ padding: "10px 6px", fontSize: 13, textAlign: "right", fontWeight: 500, color: COLORS.text }}>{fmt(h.value)}</td>
+                          <td style={{ padding: "10px 6px", fontSize: 11, textAlign: "right", color: COLORS.textMuted }}>{pct(h.value / q.pearler.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+
+            {/* Crypto */}
+            {view === "crypto" && (
+              isHistorical ? (
+                <div style={{ ...cardStyle, textAlign: "center", padding: 32, color: COLORS.textDim }}>
+                  <div style={{ fontSize: 13, marginBottom: 12 }}>Historical quarter — holdings detail not available</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: PLATFORM_COLORS.Crypto.main }}>{fmt(cryptoTotal)}</div>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4 }}>{pct(cryptoTotal / grandTotal)} of total</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ ...cardStyle, background: "linear-gradient(135deg, #111827 0%, #1a2235 100%)" }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>⚡ Crypto — Total</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: PLATFORM_COLORS.Crypto.main }}>{fmt(cryptoTotal)}</div>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 4 }}>{pct(cryptoTotal / grandTotal)} of portfolio</div>
+                  </div>
+                  <div style={cardStyle}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>⚡ Swyftx Exchange</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: PLATFORM_COLORS.Swyftx.main }}>{fmt(q.swyftx.total)}</div>
+                      </div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted }}>incl. {fmt(swyftxFiat)} cash</div>
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                          {["Asset", "Units", "Value"].map((h) => (
+                            <th key={h} style={{ textAlign: h === "Asset" ? "left" : "right", padding: "8px 6px", fontSize: 10, color: COLORS.textMuted, fontWeight: 500 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {q.swyftx.crypto.map((c, i) => (
+                          <tr key={i} style={{ borderBottom: `1px solid ${COLORS.border}`, opacity: c.value < 1 ? 0.4 : 1 }}>
+                            <td style={{ padding: "8px 6px", fontSize: 13, fontWeight: 600, color: PLATFORM_COLORS.Swyftx.main }}>{c.asset}</td>
+                            <td style={{ padding: "8px 6px", fontSize: 11, textAlign: "right", color: COLORS.textDim }}>{c.units}</td>
+                            <td style={{ padding: "8px 6px", fontSize: 13, textAlign: "right", fontWeight: 500, color: COLORS.text }}>{fmt(c.value)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={cardStyle}>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>🔐 Trezor Cold Storage</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: PLATFORM_COLORS.Trezor.main }}>{fmt(q.trezor.total)}</div>
+                    </div>
+                    {q.trezor.holdings.map((h, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${COLORS.border}` }}>
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: PLATFORM_COLORS.Trezor.main }}>{h.asset}</span>
+                          <span style={{ fontSize: 11, color: COLORS.textDim, marginLeft: 8 }}>{h.units} units</span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.text }}>{fmt(h.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Allocation */}
+            {view === "allocation" && (
+              isHistorical ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ ...cardStyle, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, alignSelf: "flex-start" }}>By Platform</div>
+                    <DonutChart segments={platformSegments} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, width: "100%" }}>
+                      {platformSegments.map((s) => (
+                        <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+                            <span style={{ fontSize: 11, color: COLORS.textDim }}>{s.label}</span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 500, color: COLORS.text }}>{pct(grandTotal > 0 ? s.value / grandTotal : 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "center", color: COLORS.textDim, fontSize: 11, textAlign: "center" }}>
+                    Asset class breakdown not available for historical quarters
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ ...cardStyle, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, alignSelf: "flex-start" }}>By Platform</div>
+                    <DonutChart segments={platformSegments} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, width: "100%" }}>
+                      {platformSegments.map((s) => (
+                        <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+                            <span style={{ fontSize: 11, color: COLORS.textDim }}>{s.label}</span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 500, color: COLORS.text }}>{pct(grandTotal > 0 ? s.value / grandTotal : 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ ...cardStyle, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, alignSelf: "flex-start" }}>By Asset Class</div>
+                    <DonutChart segments={assetClassData} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, width: "100%" }}>
+                      {assetClassData.map((s) => (
+                        <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color }} />
+                            <span style={{ fontSize: 11, color: COLORS.textDim }}>{s.label}</span>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <span style={{ fontSize: 11, fontWeight: 500, color: COLORS.text }}>{fmt(s.value)}</span>
+                            <span style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: 6 }}>{pct(grandTotal > 0 ? s.value / grandTotal : 0)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Footer */}
+            <div style={{ marginTop: 24, textAlign: "center", fontSize: 9, color: COLORS.textMuted, opacity: 0.6 }}>
+              Data as at {q.timestamp} · Excludes super, rental income &amp; offset account
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<InvestmentTracker />);
+  </script>
+</body>
+</html>
